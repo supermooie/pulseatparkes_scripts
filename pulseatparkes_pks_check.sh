@@ -19,6 +19,7 @@ datafiles_ext_sf=".sf"
 datafiles_ext_cf=".cf"
 
 runfrom_host="lagavulin"
+runas_user="pulsar"
 
 #Usage
 
@@ -127,10 +128,14 @@ function print_log() {
   echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 }
 
-if [[ $(hostname) != "$runfrom_host" ]]; then
-  echo "Must be run from '$runfrom_host'."
+fail() {
+  while test $# -gt 0; do echo $1; shift; done
+  echo "Aborting."
   exit 1
-fi
+}
+
+test "`id -un`" = "$runas_user" || fail "`basename $0` must be run as '$runas_user'."
+test "`hostname`" = $runfrom_host || fail "`basename $0` must be run from '$runfrom_host'."
 
 #Run
 usage
