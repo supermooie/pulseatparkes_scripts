@@ -9,15 +9,16 @@
 #
 #
 
-host="127.0.0.1"
-data_dir="/home/lozza"
+epp_host="herschel.atnf.csiro.au"
+data_dir="/nfs/PKCCC3_1"
 ssh_port="22"
-log_dir="$data_dir/logs"
-log_file="`date +%F+%R`.log"
+log_dir="`pwd`/logs"
+log_file="${log_dir}/`date +%F+%R`.log"
 datafiles_ext_rf=".rf"
 datafiles_ext_sf=".sf"
 datafiles_ext_cf=".cf"
 
+runfrom_host="lagavulin"
 
 #Usage
 
@@ -56,14 +57,14 @@ function check_log_dir() {
 
 function check_network() {
 
-  cmd_ping=`ping -c 1 $host > /dev/null`
+  cmd_ping=`ping -c 1 $epp_host > /dev/null`
 
   $cmd_ping
 
   if [ $? -eq 0 ]; then
-    echo "****    OK: Host '$host' is reachable." >> $log_file
+    echo "****    OK: Host '$epp_host' is reachable." >> $log_file
   else
-    echo "####    WARNING: Host '$host' is not reachable." >> $log_file
+    echo "####    WARNING: Host '$epp_host' is not reachable." >> $log_file
   fi
 
 }  
@@ -72,47 +73,24 @@ function check_network() {
 #Check sshd daemon is running
 
 function check_sshd() {
-
-  cmd_sshd=`ps -C sshd > /dev/null`
-
-  $cmd_sshd
+  nc -z $epp_host $ssh_port
 
   if [ $? -eq 0 ]; then
-    echo "****    OK: sshd is running." >> $log_file
-
-    exec 3<> /dev/tcp/127.0.0.1/$ssh_port
-
-    if [ $? -eq 0 ]; then
-      echo "****    OK: port $ssh_port is open." >> $log_file
-    else
-      echo "####    WARNING: port $ssh_port is closed." >> $log_file
-    fi 
-
+    echo "****    OK: SSH accessible on $epp_host." >> $log_file
   else
-    echo "####    WARNING: sshd is dead." >> $log_file
-  fi
-
+    echo "####    WARNING: SSH NOT accessible on $epp_host." >> $log_file
+  fi 
 }
 
 
 #Check data mount
 
 function check_data_mount() {
-
   if [ -d $data_dir ]; then
     echo "****    OK: P@P data directory '$data_dir' exists." >> $log_file
-    if [ -f $datafiles_ext_rf ] || [ -f $datafiles_ext_sf ] || [ -f $datafiles_ext_cf ]; then
-      echo "****    OK: $data_dir contains:" >> $log_file
-      echo 
-      echo `ls $data_dir` >> $log_file
-      echo
-    else
-      echo "####    WARNING: P@P data directory '$data_dir' is empty. It must contain files with $datafiles_ext_rf, $datafiles_ext_sf or $datafiles_ext_cf extensions." >> $log_file
-    fi
   else 
     echo "####    WARNING: $data_dir does not exist." >> $log_file
   fi
-
 }
 
 
@@ -149,6 +127,10 @@ function print_log() {
   echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 }
 
+if [[ $(hostname) != "$runfrom_host" ]]; then
+  echo "Must be run from '$runfrom_host'."
+  exit 1
+fi
 
 #Run
 usage
