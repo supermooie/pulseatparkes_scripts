@@ -1,27 +1,31 @@
 #!/bin/bash
 #
-# pulseatparkes_eppg_check.sh
+# pulseatparkes_epp_check.sh
 #
-# This script checks network status, 
+# This script checks network status (to Parkes)
 # data mounts, folder permissions and Apache status 
 # at Epping servers prior to a P@P session
 # An alert is given if any of the above fail the test.
 #
+# Note: Must be from run herschel (Epping).
+#
 #
 
-host="herschel.atnf.csiro.au"
+web_host="herschel.atnf.csiro.au"
+pks_host="lagavulin.atnf.csiro.au"
 data_dir="/nfs/wwwresearch/pulsar/pulseATpks"
 http_port="80"
 log_dir="`pwd`/logs"
-log_file="`date +%F+%R`.log"
+log_file="${log_dir}/`date +%F+%R`.log"
 
+runfrom_host="herschel"
 
 #Usage
 
 function usage() {
 
   echo
-  echo "pulseatparkes_eppg_check usage:"
+  echo "pulseatparkes_epp_check usage:"
   echo "    ->This script checks network status, data mounts, folder permissions and apache status on Epping servers prior to P@P session."
   echo
 
@@ -53,14 +57,14 @@ function check_log_dir() {
 
 function check_network() {
 
-  cmd_ping=`ping -c 1 $host > /dev/null`
+  cmd_ping=`ping -c 1 $pks_host > /dev/null`
 
   $cmd_ping
 
   if [ $? -eq 0 ]; then
-    echo "****    OK: Host '$host' is reachable." >> $log_file
+    echo "****    OK: Host '$pks_host' is reachable." >> $log_file
   else
-    echo "####    WARNING: Host '$host' is not reachable." >> $log_file
+    echo "####    WARNING: Host '$pks_host' is not reachable." >> $log_file
   fi
 
 }  
@@ -77,7 +81,7 @@ function check_httpd() {
   if [ $? -eq 0 ]; then
     echo "****    OK: httpd server is running." >> $log_file
 
-    exec 3<> /dev/tcp/127.0.0.1/$http_port
+    netcat -z $web_host $http_port
 
     if [ $? -eq 0 ]; then
       echo "****    OK: port $http_port is open." >> $log_file
@@ -124,11 +128,15 @@ function print_log() {
   echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 }
 
+if [[ $(hostname) != "$runfrom_host" ]]; then
+  echo "Must be run from '$runfrom_host'."
+  exit 1
+fi
 
 #Run
 usage
 check_log_dir
 check_network
-#check_httpd
+check_httpd
 check_data_mount
 print_log
