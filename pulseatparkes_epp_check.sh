@@ -9,10 +9,10 @@
 #
 #
 
-host="127.0.0.1"
-data_dir="/home/lozza"
+host="herschel.atnf.csiro.au"
+data_dir="/nfs/wwwresearch/pulsar/pulseATpks"
 http_port="80"
-log_dir="$data_dir/logs"
+log_dir="`pwd`/logs"
 log_file="`date +%F+%R`.log"
 
 
@@ -129,6 +129,6 @@ function print_log() {
 usage
 check_log_dir
 check_network
-check_httpd
+#check_httpd
 check_data_mount
 print_log
