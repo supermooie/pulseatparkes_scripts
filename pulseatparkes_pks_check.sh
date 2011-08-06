@@ -2,6 +2,9 @@
 #
 # pulseatparkes_pks_check.sh
 #
+# Author: Lawrence Toomey
+# Date: July 2011
+#
 # This script checks network status, 
 # data mounts and appropriate software are 
 # present at Parkes servers prior to a P@P session

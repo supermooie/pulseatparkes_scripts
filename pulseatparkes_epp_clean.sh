@@ -2,6 +2,9 @@
 #
 # pulseatparkes_eppg_clean.sh
 #
+# Author: Lawrence Toomey
+# Date: July 2011
+#
 # This script checks pulse@parkes session data 
 # for age, and prompts deletion of files > 30 days old
 #

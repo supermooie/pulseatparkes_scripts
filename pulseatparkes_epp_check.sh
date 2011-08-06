@@ -2,6 +2,9 @@
 #
 # pulseatparkes_epp_check.sh
 #
+# Author: Lawrence Toomey
+# Date: July 2011
+#
 # This script checks network status (to Parkes)
 # data mounts, folder permissions and Apache status 
 # at Epping servers prior to a P@P session
