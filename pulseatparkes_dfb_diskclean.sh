@@ -12,16 +12,8 @@
 #
 #
 
-#epp_user="lozza"
-#epp_host="mediacentre"
-#pks_host="mediacentre"
-#corr_user="lozza"
-#corr_host="mediacentre"
-#corr_data_dir_path="/home/lozza"
-#corr_data_dir="pks"
-#local_host="psr1"
-
 epp_user="pulsar"
+pks_user="pulsar"
 epp_host="tycho.atnf.csiro.au"
 pks_host="lagavulin.atnf.csiro.au"
 corr_user="corr"
@@ -35,7 +27,7 @@ script=$(basename $0)
 dat_dir="${local_dir}/${script}_dats"
 log_dir="${local_dir}/${script}_logs"
 log_file="${log_dir}/`date +%F+%R`_deleted.log"
-ta_summary="TAsummary.sh"
+ta_summary="TAsummary.csh"
 
 case $1 in
   PDFB2)
@@ -51,9 +43,11 @@ case $1 in
     ;;
 esac
 
-epp_dat="${dat_dir}/SF_epp_$dfb.dat"
-pks_dat="${dat_dir}/SF_pks_$dfb.dat"
-dlt_dat="${dat_dir}/SF_DLT_$dfb.dat"
+DFB_UPPER=$1
+
+epp_dat="SF_epp_$dfb.dat"
+pks_dat="SF_pks_$dfb.dat"
+dlt_dat="SF_DLT_$dfb.dat"
 eppcp_dat="${dat_dir}/SF_eppcp_$dfb.dat"
 pksbk_dat="${dat_dir}/SF_pksbk_$dfb.dat"
 del_dat="SF_del_$dfb.dat"
@@ -260,7 +254,9 @@ function start_ssh() {
     access)
       cmd=$4
       arg=$5
-      ssh ${user}@${host} "$cmd" > /dev/null
+
+      ssh ${user}@${host} $cmd > /dev/null
+
       exit_status=$?
       if [ "$arg" == "" ]; then
         if [ $exit_status -eq 1 ]; then
@@ -318,13 +314,14 @@ function check_file_exists() {
             fi ;; 
    
           script)
-            command -v $arg > /dev/null
+            which $arg > /dev/null
             exit_status=$?
+
             get_msg exist arg_script_exist $exit_status $arg ;;
         esac
       done ;;
 
-    $corr_host)
+    $corr_host|$pks_host)
       get_msg init arg_chk_dir 0 $loc
       echo
 
@@ -335,10 +332,12 @@ function check_file_exists() {
 
       case $filetype in
         dir)
-          cmd="ls -lR | grep -w $arg" ;;
+          cmd="if ( -d ${corr_data_dir_path}/${arg} ) then; echo ''; endif" ;;
 
         script)
-          cmd="command -v $arg" ;;
+          cmd="which $arg"
+        echo $cmd
+          ;;
       esac 
 
       start_ssh access $user $host "$cmd" $arg ;;
@@ -349,7 +348,8 @@ function check_file_exists() {
 
 
 #
-#Check Epping data disk and Parkes data disk and DLT, and copy TAsummary output to local directory
+# Check Epping data disk and Parkes data disk and DLT, and copy TAsummary output
+# to local directory
 #
 
 function get_disk_list() {
@@ -361,11 +361,15 @@ function get_disk_list() {
   echo
 
   if [ "$host" == "$epp_host" ]; then 
-    cmd="TAsummary.csh $dfb; scp $epp_dat $local_host:$local_dir"
+    cmd="TAsummary.csh $DFB_UPPER; scp $epp_dat $local_host:$dat_dir"
   fi
 
-  if [ "$host" == "$corr_host" ]; then
-    cmd="cd $corr_data_dir_path/$corr_data_dir; TAsummary.csh $dfb; scp $pks_dat $dlt_dat $local_host:$local_dir"
+  #if [ "$host" == "$corr_host" ]; then
+    #cmd="cd $corr_data_dir_path/$corr_data_dir; TAsummary.csh $dfb; scp $pks_dat $dlt_dat $local_host:$local_dir"
+  #fi
+
+  if [ "$host" == "$pks_host" ]; then 
+    cmd="TAsummary.csh $DFB_UPPER; scp $pks_dat $dlt_dat $local_host:$dat_dir"
   fi
 
   start_ssh access $user $host "$cmd"
@@ -383,14 +387,14 @@ function check_dat_dir() {
   get_msg init arg_chk_dat_dir
   echo
 
-  for i in $epp_dat $pks_dat $dlt_dat
+  for i in $dat_dir/$epp_dat $dat_dir/$pks_dat $dat_dir/$dlt_dat
   do
     if [ ! -f "$i" ]; then
       get_msg exist arg_file_exist 1 $i
     fi
   done
 
-  if [ ! -f "$epp_dat" ] || [ ! -f "$pks_dat" ] || [ ! -f "$dlt_dat" ]; then
+  if [ ! -f "$dat_dir/$epp_dat" ] || [ ! -f "$dat_dir/$pks_dat" ] || [ ! -f "$dat_dir/$dlt_dat" ]; then
     echo
     get_msg exist arg_dat_exist 1
     exit 1
@@ -408,51 +412,23 @@ function check_dat_dir() {
 
 function compare_dat_lists() {
 
-  pks_list=`awk '{print$1}' $pks_dat`
-  epp_list=`awk '{print$1}' $epp_dat`
-  dlt_list=`awk '{print$1}' $dlt_dat`
-
   get_msg init arg_compare_dat_msg
   echo
 
-  #Check copied from pks to epp
-  for line in $pks_list
-  do 
-    for line2 in $epp_list
-    do 
-      if [ $line == $line2 ]; then
-        echo $line >> $eppcp_dat
-      fi
-    done
+  # Check copied from pks to epp
+  for file in `awk '{print$1}' $dat_dir/$pks_dat`; do
+    grep $file $dat_dir/$epp_dat >> $eppcp_dat
   done
 
-  #Check backed up to DLT at pks
-  for line in $pks_list
-  do
-    for line2 in $dlt_list
-    do
-      if [ $line == $line2 ]; then
-        echo $line >> $pksbk_dat
-      fi
-    done
+  # Comparing files copied to Epping and DLT files.
+  for file in `awk '{print$1}' $eppcp_dat`; do
+    grep $file $dat_dir/$dlt_dat >> $pksbk_dat
   done
 
-  #Compare epp .dat with DLT .dat
-  diff $eppcp_dat $pksbk_dat
-
-  if [ $? -eq 0 ]; then
-    mv $pksbk_dat $dat_dir/$del_dat
-    get_msg wrapup arg_compare_dat_lists 0
-    echo
-    cat $dat_dir/$del_dat
-    rm $eppcp_dat
-  else
-    get_msg wrapup arg_compare_dat_lists 1
-    echo
-    rm $eppcp_dat $pksbk_dat
-    exit 1
-  fi
+  mv $pksbk_dat $dat_dir/$del_dat
+  get_msg wrapup arg_compare_dat_lists 0
   echo
+  rm $eppcp_dat
 
 }
 
@@ -463,7 +439,7 @@ function compare_dat_lists() {
 
 function delete_files() {
 
-  cmd_del="cd $corr_data_dir_path/$corr_data_dir; awk '{print $1}' < $del_dat | xargs -n 100 rm; rm $del_dat"
+  cmd_del="cd $corr_data_dir_path/$corr_data_dir; awk '{print $1}' < $del_dat | xargs -n 100 echo rm; echo rm $del_dat"
  
   get_msg init arg_delete_msg
   read input
@@ -473,19 +449,18 @@ function delete_files() {
     start_ssh copy $corr_user $corr_host "$dat_dir/$del_dat" "$corr_data_dir_path/$corr_data_dir"
     start_ssh access $corr_user $corr_host "$cmd_del"
     echo
-    get_msg wrapup arg_delete_list
+    #get_msg wrapup arg_delete_list
     echo
-    cat $dat_dir/$del_dat
     cat $dat_dir/$del_dat > $log_file
     echo
     get_msg wrapup arg_delete_log
     echo
-    rm $dat_dir/*.dat
+    #rm $dat_dir/*.dat
     exit 1
   else
     echo "Exiting."
     echo
-    rm $dat_dir/*.dat
+    #rm $dat_dir/*.dat
     exit 1
   fi
 
@@ -510,14 +485,14 @@ elif [ "$1" = "PDFB2" -o "$1" = "PDFB3" -o "$1" = "PDFB4" ]; then
   check_network $epp_host $pks_host
   check_file_exists $local_host dir $dat_dir $log_dir
   check_file_exists $local_host script $ta_summary
-  check_file_exists $local_host script ppss
   check_file_exists $corr_host dir $corr_user $corr_data_dir
-  check_file_exists $corr_host script $corr_user $ta_summary
+  check_file_exists $pks_host script $pks_user $ta_summary
   get_disk_list $epp_user $epp_host
-  get_disk_list $corr_user $corr_host
+  get_disk_list $pks_user $pks_host
   check_dat_dir
   compare_dat_lists
-  delete_files
+
+  exit
 else
   echo "pulseatparkes_dfb_diskclean: ERROR: Supplied argument must be 'PDFB2', 'PDFB3' or 'PDFB4'."
   echo
