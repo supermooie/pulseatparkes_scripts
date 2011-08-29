@@ -6,7 +6,7 @@
 # Date: August 2011
 #
 # This script checks dfb data files are backed up on DLT at Parkes
-# and copied to Epping, prior to deletion from Parkes data disk.
+# and copied to Epping. Files ready to delete are listed in a log file.
 #
 # Note: Must be from run herschel (Epping).
 #
@@ -17,7 +17,6 @@ pks_user="pulsar"
 epp_host="tycho.atnf.csiro.au"
 pks_host="lagavulin.atnf.csiro.au"
 corr_user="corr"
-corr_host="pkccc3.atnf.csiro.au"
 corr_data_dir_path="/data1"
 corr_data_dir="${1}_1"
 local_host="herschel.atnf.csiro.au"
@@ -32,24 +31,26 @@ ta_summary="TAsummary.csh"
 case $1 in
   PDFB2)
     dfb="dfb2"
+    corr_host="pkccc2.atnf.csiro.au"
     ;;
 
   PDFB3)
     dfb="dfb3"
+    corr_host="pkccc3.atnf.csiro.au"
     ;;
 
   PDFB4)
     dfb="dfb4"
+    corr_host="pkccc4.atnf.csiro.au"
     ;;
 esac
 
-DFB_UPPER=$1
-
+dfb_upper=$1
 epp_dat="SF_epp_$dfb.dat"
 pks_dat="SF_pks_$dfb.dat"
 dlt_dat="SF_DLT_$dfb.dat"
-eppcp_dat="${dat_dir}/SF_eppcp_$dfb.dat"
-pksbk_dat="${dat_dir}/SF_pksbk_$dfb.dat"
+eppcp_dat="SF_eppcp_$dfb.dat"
+pksbk_dat="SF_pksbk_$dfb.dat"
 del_dat="SF_del_$dfb.dat"
 
 #
@@ -67,14 +68,14 @@ function usage() {
   echo
   echo "pulseatparkes_dfb_diskclean"
   echo
-  echo "    ->This script checks dfb data files are backed up on DLT at Parkes and copied to Epping, prior to deletion from Parkes data disk."
+  echo "    ->This script checks dfb data files are backed up on DLT at Parkes 
+      and copied to Epping. Files ready to delete are listed in a log file."
   echo
   echo "      Usage: pulseatparkes_dfb_diskclean.sh <PDFB#>"
   echo
-  echo
 
   if [[ $(hostname) != "$runfrom_host" ]]; then
-    echo "      Note: Must be run from '$runfrom_host'."
+    echo "      *Note: Must be run from '$runfrom_host'."
     echo
     exit 1
   fi
@@ -103,7 +104,7 @@ function get_msg() {
           echo "Checking network status..." ;;
 
         arg_chk_dat_dir)
-          echo "Checking for TAsummary.sh output files in $dat_dir..." ;;
+          echo "Checking for $ta_summary output files in $dat_dir..." ;;
 
         arg_disk_list)
           echo "Gathering file list from $msgarg..." ;;
@@ -112,7 +113,7 @@ function get_msg() {
           echo "Comparing TAsummary output files in $dat_dir..." ;;
 
         arg_delete_msg)
-          echo "Do you wish to delete these files from Parkes disk (y/n)?" ;;
+          echo "Creating log of files to delete..." ;;
 
         arg_host_status)
           case $msgbool in
@@ -136,7 +137,7 @@ function get_msg() {
               fi
 
               if [ "$msgarg" == "$log_dir" ]; then
-                echo "  Creating '$log_dir'. This directory will contain logs listing deleted files."
+                echo "  Creating '$log_dir'. This directory will contain logs of files to be deleted."
               fi ;;
 
             0)
@@ -197,23 +198,13 @@ function get_msg() {
 
     wrapup) 
       case $msgname in  
-        arg_compare_dat_lists)
-          case $msgbool in
-            1)
-              echo "  WARNING: A mismatch exists between files at Epping and Parkes. Please check disk contents before continuing." ;;
-
-            0)
-              echo "  OK: The following files have already been copied to Epping and backed up to Parkes DLT:" ;;
-          esac ;;
- 
         arg_complete)
           echo "  Complete." ;;
   
-        arg_delete_list)
-          echo "The following files have been deleted from ${corr_user}@${corr_host}:${corr_data_dir_path}/${corr_data_dir}" ;;
-
         arg_delete_log)
-          echo "Deleted files are listed in '$log_file'." ;;
+          echo "  OK: The list of files to delete ($dat_dir/$del_dat) has been copied to '$corr_data_dir_path/$corr_data_dir'."
+          echo "  These files are also listed in '$log_file'."
+          echo "Done." ;;
       esac ;;
   esac
 
@@ -289,7 +280,7 @@ function start_ssh() {
 
 
 #
-#Check existence of required directories and scripts
+#Check existence of required directories and scripts; remove old dat files if they exist
 #
 
 function check_file_exists() {
@@ -311,12 +302,14 @@ function check_file_exists() {
               mkdir $arg
             else
               get_msg exist arg_dir_exist 0 $arg
+              if [ -f $dat_dir/*.dat ]; then
+                rm $dat_dir/*.dat
+              fi
             fi ;; 
    
           script)
             which $arg > /dev/null
             exit_status=$?
-
             get_msg exist arg_script_exist $exit_status $arg ;;
         esac
       done ;;
@@ -360,17 +353,13 @@ function get_disk_list() {
   get_msg init arg_disk_list 0 $host
   echo
 
-  if [ "$host" == "$epp_host" ]; then 
-    cmd="TAsummary.csh $DFB_UPPER; scp $epp_dat $local_host:$dat_dir"
-  fi
+  case $host in
+    $epp_host)
+      cmd="TAsummary.csh $dfb_upper; scp $epp_dat $local_host:$dat_dir" ;;
 
-  #if [ "$host" == "$corr_host" ]; then
-    #cmd="cd $corr_data_dir_path/$corr_data_dir; TAsummary.csh $dfb; scp $pks_dat $dlt_dat $local_host:$local_dir"
-  #fi
-
-  if [ "$host" == "$pks_host" ]; then 
-    cmd="TAsummary.csh $DFB_UPPER; scp $pks_dat $dlt_dat $local_host:$dat_dir"
-  fi
+    $pks_host)
+      cmd="TAsummary.csh $dfb_upper; scp $pks_dat $dlt_dat $local_host:$dat_dir" ;;
+  esac
 
   start_ssh access $user $host "$cmd"
   echo
@@ -416,53 +405,41 @@ function compare_dat_lists() {
   echo
 
   # Check copied from pks to epp
-  for file in `awk '{print$1}' $dat_dir/$pks_dat`; do
-    grep $file $dat_dir/$epp_dat >> $eppcp_dat
+  for file in `awk '{print$1}' $dat_dir/$pks_dat`
+  do
+    grep $file $dat_dir/$epp_dat >> $dat_dir/$eppcp_dat
   done
 
-  # Comparing files copied to Epping and DLT files.
-  for file in `awk '{print$1}' $eppcp_dat`; do
-    grep $file $dat_dir/$dlt_dat >> $pksbk_dat
+  # Comparing files copied to epp and DLT.
+  for file in `awk '{print$1}' $dat_dir/$eppcp_dat`
+  do
+    grep $file $dat_dir/$dlt_dat >> $dat_dir/$pksbk_dat
   done
 
-  mv $pksbk_dat $dat_dir/$del_dat
-  get_msg wrapup arg_compare_dat_lists 0
+  mv $dat_dir/$pksbk_dat $dat_dir/$del_dat
+  get_msg wrapup arg_complete
   echo
-  rm $eppcp_dat
+  rm $dat_dir/$eppcp_dat
 
 }
 
 
 #
-#Delete files from Parkes disk on confirmation
+#Create log of files to delete from Parkes disk
 #
 
-function delete_files() {
+function create_delete_log() {
 
-  cmd_del="cd $corr_data_dir_path/$corr_data_dir; awk '{print $1}' < $del_dat | xargs -n 100 echo rm; echo rm $del_dat"
- 
   get_msg init arg_delete_msg
-  read input
   echo
 
-  if [ "$input" == "y" ] || [ "$input" == "yes" ]; then
-    start_ssh copy $corr_user $corr_host "$dat_dir/$del_dat" "$corr_data_dir_path/$corr_data_dir"
-    start_ssh access $corr_user $corr_host "$cmd_del"
-    echo
-    #get_msg wrapup arg_delete_list
-    echo
-    cat $dat_dir/$del_dat > $log_file
-    echo
-    get_msg wrapup arg_delete_log
-    echo
-    #rm $dat_dir/*.dat
-    exit 1
-  else
-    echo "Exiting."
-    echo
-    #rm $dat_dir/*.dat
-    exit 1
-  fi
+  start_ssh copy $corr_user $corr_host "$dat_dir/$del_dat" "$corr_data_dir_path/$corr_data_dir"
+  cat $dat_dir/$del_dat > $log_file
+
+  get_msg wrapup arg_delete_log
+  echo
+
+  exit 0
 
 }
 
@@ -491,8 +468,8 @@ elif [ "$1" = "PDFB2" -o "$1" = "PDFB3" -o "$1" = "PDFB4" ]; then
   get_disk_list $pks_user $pks_host
   check_dat_dir
   compare_dat_lists
-
-  exit
+  create_delete_log
+  exit 0
 else
   echo "pulseatparkes_dfb_diskclean: ERROR: Supplied argument must be 'PDFB2', 'PDFB3' or 'PDFB4'."
   echo
