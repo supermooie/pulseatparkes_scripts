@@ -328,9 +328,7 @@ function check_file_exists() {
           cmd="if ( -d ${corr_data_dir_path}/${arg} ) then; echo ''; endif" ;;
 
         script)
-          cmd="which $arg"
-        echo $cmd
-          ;;
+          cmd="which $arg" ;;
       esac 
 
       start_ssh access $user $host "$cmd" $arg ;;
