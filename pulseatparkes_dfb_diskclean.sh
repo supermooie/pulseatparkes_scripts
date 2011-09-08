@@ -202,11 +202,12 @@ function get_msg() {
           echo "  Complete." ;;
   
         arg_delete_log)
-          echo "  OK: The list of files to delete ($dat_dir/$del_dat) has been copied to '$corr_data_dir_path/$corr_data_dir'."
-          echo "  These files are also listed in '$log_file'."
+          echo "  OK: The list of files to delete can be found in '$log_file'."
           echo "Done." ;;
       esac ;;
   esac
+
+  echo
 
 }
 
@@ -218,7 +219,6 @@ function get_msg() {
 function check_network() {
 
   get_msg init arg_chk_network_sts
-  echo
 
   for arg in $@
   do
@@ -272,7 +272,6 @@ function start_ssh() {
 
   if [ ! $? -eq 0 ]; then
     get_msg error arg_ssh 1 $host
-    echo
     exit 1
   fi
   
@@ -291,7 +290,6 @@ function check_file_exists() {
   case $loc in
     $local_host)
       get_msg init arg_chk_dir 0 $loc
-      echo
 
       for arg in ${@:3}
       do
@@ -316,7 +314,6 @@ function check_file_exists() {
 
     $corr_host|$pks_host)
       get_msg init arg_chk_dir 0 $loc
-      echo
 
       filetype=$2
       user=$3
@@ -349,7 +346,6 @@ function get_disk_list() {
   host=$2
 
   get_msg init arg_disk_list 0 $host
-  echo
 
   case $host in
     $epp_host)
@@ -360,7 +356,6 @@ function get_disk_list() {
   esac
 
   start_ssh access $user $host "$cmd"
-  echo
 
 }
 
@@ -372,7 +367,6 @@ function get_disk_list() {
 function check_dat_dir() {
 
   get_msg init arg_chk_dat_dir
-  echo
 
   for i in $dat_dir/$epp_dat $dat_dir/$pks_dat $dat_dir/$dlt_dat
   do
@@ -387,7 +381,6 @@ function check_dat_dir() {
     exit 1
   else
     get_msg exist arg_dat_exist 0
-    echo
   fi
 
 }
@@ -400,7 +393,6 @@ function check_dat_dir() {
 function compare_dat_lists() {
 
   get_msg init arg_compare_dat_msg
-  echo
 
   # Check copied from pks to epp
   for file in `awk '{print$1}' $dat_dir/$pks_dat`
@@ -416,7 +408,6 @@ function compare_dat_lists() {
 
   mv $dat_dir/$pksbk_dat $dat_dir/$del_dat
   get_msg wrapup arg_complete
-  echo
   rm $dat_dir/$eppcp_dat
 
 }
@@ -429,13 +420,8 @@ function compare_dat_lists() {
 function create_delete_log() {
 
   get_msg init arg_delete_msg
-  echo
-
-  start_ssh copy $corr_user $corr_host "$dat_dir/$del_dat" "$corr_data_dir_path/$corr_data_dir"
   cat $dat_dir/$del_dat > $log_file
-
   get_msg wrapup arg_delete_log
-  echo
 
   exit 0
 
